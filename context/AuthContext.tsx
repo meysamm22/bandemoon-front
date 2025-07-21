@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { storageService, StoredUserInfo } from '../services/storage';
+import { apiService } from '../services/api';
 
 interface User {
   id: number;
@@ -64,6 +65,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Load auth state on component mount
   useEffect(() => {
     initializeAuth();
+    
+    // Set up token update callback for API service
+    apiService.setTokenUpdateCallback(updateTokens);
   }, []);
 
   const login = async (user: User, accessToken: string, refreshToken: string) => {

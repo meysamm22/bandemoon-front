@@ -90,8 +90,8 @@ const LoginWithLeftBackground = () => {
         });
         reset();
         
-        // Navigate to main app or dashboard
-        router.push('/dashboard');
+        // Navigate to test dashboard
+        router.push('/dashboard-test');
         
       } else {
         // Handle error response from server

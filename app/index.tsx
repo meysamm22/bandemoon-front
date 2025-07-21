@@ -10,8 +10,8 @@ export default function Index() {
   useEffect(() => {
     if (!isLoading) {
       if (isAuthenticated) {
-        // User is authenticated, redirect to dashboard
-        router.replace('/dashboard');
+        // User is authenticated, redirect to test dashboard
+        router.replace('/dashboard-test');
       } else {
         // User is not authenticated, redirect to signin
         router.replace('/signin');

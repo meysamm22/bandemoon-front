@@ -51,6 +51,12 @@ export interface LogoutResponse {
 }
 
 class ApiService {
+  private onTokenUpdate?: (accessToken: string, refreshToken: string) => Promise<void>;
+
+  setTokenUpdateCallback(callback: (accessToken: string, refreshToken: string) => Promise<void>) {
+    this.onTokenUpdate = callback;
+  }
+
   private async makeRequest<T>(
     endpoint: string,
     options: RequestInit = {},
@@ -108,9 +114,29 @@ class ApiService {
           console.log('Token expired, attempting to refresh...');
           const refreshResult = await this.refreshToken();
           if (refreshResult.success && refreshResult.accessToken) {
+            // Store the new tokens
+            await storageService.storeAccessToken(refreshResult.accessToken);
+            if (refreshResult.refreshToken) {
+              await storageService.storeRefreshToken(refreshResult.refreshToken);
+            }
+            
+            // Notify AuthContext about token update
+            if (this.onTokenUpdate && refreshResult.accessToken && refreshResult.refreshToken) {
+              try {
+                await this.onTokenUpdate(refreshResult.accessToken, refreshResult.refreshToken);
+                console.log('AuthContext notified of token update');
+              } catch (error) {
+                console.error('Failed to update AuthContext:', error);
+              }
+            }
+            
             // Retry the original request with new token
             console.log('Token refreshed, retrying original request...');
             return this.makeRequest<T>(endpoint, options, skipAuth);
+          } else {
+            console.log('Token refresh failed:', refreshResult.message);
+            // If refresh failed, return the original error
+            return responseData;
           }
         }
         
@@ -147,10 +173,43 @@ class ApiService {
       } as RefreshTokenResponse;
     }
 
-    return this.makeRequest<RefreshTokenResponse>('/auth/refresh', {
-      method: 'POST',
-      body: JSON.stringify({ refreshToken: tokenToUse }),
-    }, true); // Skip auth for refresh
+    const url = `${API_BASE_URL}/auth/refresh`;
+    console.log('Refreshing token at:', url);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken: tokenToUse }),
+      });
+
+      let responseData;
+      try {
+        responseData = await response.json();
+        console.log('Refresh token response:', responseData);
+      } catch (parseError) {
+        console.error('Failed to parse refresh response as JSON:', parseError);
+        responseData = {
+          success: false,
+          message: `HTTP ${response.status}: ${response.statusText}`
+        };
+      }
+
+      if (!response.ok) {
+        console.log('Refresh token failed:', response.status, responseData);
+        return responseData;
+      }
+
+      return responseData;
+    } catch (error) {
+      console.error('Refresh token request failed:', error);
+      return {
+        success: false,
+        message: 'Network error during token refresh.'
+      } as RefreshTokenResponse;
+    }
   }
 
   async logout(refreshToken: string): Promise<LogoutResponse> {
@@ -177,6 +236,43 @@ class ApiService {
       },
     });
   }
+
+  async getMyProfile(): Promise<ProfileResponse> {
+    return this.makeRequest<ProfileResponse>('/profile/me', {
+      method: 'GET',
+    });
+  }
+
+  async getUserProfile(userId: number): Promise<ProfileResponse> {
+    return this.makeRequest<ProfileResponse>(`/profile/${userId}`, {
+      method: 'GET',
+    });
+  }
+}
+
+export interface ProfileResponse {
+  success: boolean;
+  message: string;
+  userProfile?: {
+    id: number;
+    email: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+    bio?: string;
+    profilePicture?: string;
+    location?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    website?: string;
+    socialMediaLinks?: string;
+    musicalInstruments?: string;
+    musicalGenres?: string;
+    experienceLevel?: string;
+    availability?: string;
+    createdAt: string;
+    updatedAt: string;
+  };
 }
 
 export const apiService = new ApiService(); 
