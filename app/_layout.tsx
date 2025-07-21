@@ -5,11 +5,13 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { GluestackUIProvider } from "@/components/ui/gluestack-ui-provider";
 import { useColorScheme } from "@/components/useColorScheme";
+import { AuthProvider, useAuth } from "../context/AuthContext";
+import { LoadingScreen } from "../components/LoadingScreen";
 import "../global.css";
 
 export {
@@ -46,11 +48,21 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <AuthProvider>
+      <RootLayoutNav />
+    </AuthProvider>
+  );
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // Show loading screen while initializing auth state
+  if (isLoading) {
+    return <LoadingScreen message="Initializing..." />;
+  }
 
   return (
     <GluestackUIProvider mode={(colorScheme ?? "light") as "light" | "dark"}>

@@ -38,21 +38,8 @@ import { GoogleIcon } from "./assets/icons/google";
 import { Pressable } from "@/components/ui/pressable";
 import useRouter from "@unitools/router";
 import { AuthLayout } from "../layout";
-
-const USERS = [
-  {
-    email: "gabrial@gmail.com",
-    password: "Gabrial@123",
-  },
-  {
-    email: "tom@gmail.com",
-    password: "Tom@123",
-  },
-  {
-    email: "thomas@gmail.com",
-    password: "Thomas@1234",
-  },
-];
+import { useAuth } from "../../../context/AuthContext";
+import { apiService } from "../../../services/api";
 
 const loginSchema = z.object({
   email: z.string().min(1, "Email is required").email(),
@@ -72,18 +59,25 @@ const LoginWithLeftBackground = () => {
     resolver: zodResolver(loginSchema),
   });
   const toast = useToast();
-  const [validated, setValidated] = useState({
-    emailValid: true,
-    passwordValid: true,
-  });
+  const { login } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const onSubmit = (data: LoginSchemaType) => {
-    const user = USERS.find((element) => element.email === data.email);
-    if (user) {
-      if (user.password !== data.password)
-        setValidated({ emailValid: true, passwordValid: false });
-      else {
-        setValidated({ emailValid: true, passwordValid: true });
+  const onSubmit = async (data: LoginSchemaType) => {
+    setIsLoading(true);
+    
+    console.log('Attempting login with:', { email: data.email });
+    
+    const result = await apiService.login({
+      email: data.email,
+      password: data.password,
+    });
+
+    console.log('Login result:', result);
+
+          if (result.success && result.user && result.accessToken && result.refreshToken) {
+        // Store authentication data in context
+        await login(result.user, result.accessToken, result.refreshToken);
+        
         toast.show({
           placement: "bottom right",
           render: ({ id }) => {
@@ -95,10 +89,28 @@ const LoginWithLeftBackground = () => {
           },
         });
         reset();
+        
+        // Navigate to main app or dashboard
+        router.push('/dashboard');
+        
+      } else {
+        // Handle error response from server
+        console.log('Login failed:', result);
+        
+        // Always show the server error message in toast, regardless of the error type
+        toast.show({
+          placement: "bottom right",
+          render: ({ id }) => {
+            return (
+              <Toast nativeID={id} variant="accent" action="error">
+                <ToastTitle>{result.message || 'Login failed'}</ToastTitle>
+              </Toast>
+            );
+          },
+        });
       }
-    } else {
-      setValidated({ emailValid: false, passwordValid: true });
-    }
+    
+    setIsLoading(false);
   };
   const [showPassword, setShowPassword] = useState(false);
 
@@ -136,7 +148,7 @@ const LoginWithLeftBackground = () => {
       <VStack className="w-full">
         <VStack space="xl" className="w-full">
           <FormControl
-            isInvalid={!!errors?.email || !validated.emailValid}
+            isInvalid={!!errors?.email}
             className="w-full"
           >
             <FormControlLabel>
@@ -172,14 +184,13 @@ const LoginWithLeftBackground = () => {
             <FormControlError>
               <FormControlErrorIcon as={AlertTriangle} />
               <FormControlErrorText>
-                {errors?.email?.message ||
-                  (!validated.emailValid && "Email ID not found")}
+                {errors?.email?.message}
               </FormControlErrorText>
             </FormControlError>
           </FormControl>
           {/* Label Message */}
           <FormControl
-            isInvalid={!!errors.password || !validated.passwordValid}
+            isInvalid={!!errors.password}
             className="w-full"
           >
             <FormControlLabel>
@@ -219,8 +230,7 @@ const LoginWithLeftBackground = () => {
             <FormControlError>
               <FormControlErrorIcon as={AlertTriangle} />
               <FormControlErrorText>
-                {errors?.password?.message ||
-                  (!validated.passwordValid && "Password was incorrect")}
+                {errors?.password?.message}
               </FormControlErrorText>
             </FormControlError>
           </FormControl>
@@ -252,8 +262,14 @@ const LoginWithLeftBackground = () => {
           </HStack>
         </VStack>
         <VStack className="w-full my-7 " space="lg">
-          <Button className="w-full" onPress={handleSubmit(onSubmit)}>
-            <ButtonText className="font-medium">Log in</ButtonText>
+          <Button 
+            className="w-full" 
+            onPress={handleSubmit(onSubmit)}
+            isDisabled={isLoading}
+          >
+            <ButtonText className="font-medium">
+              {isLoading ? "Logging in..." : "Log in"}
+            </ButtonText>
           </Button>
           <Button
             variant="outline"
